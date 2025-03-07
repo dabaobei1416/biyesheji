@@ -49,7 +49,7 @@ def frame_process(image):  # 定义帧处理函数，用于处理每一帧图像
     window.dispImage(window.label, image)  # 在窗口的label上显示图像
 
 
-cls_name = ["暴力倾向"]  # 定义类名列表
+cls_name = ["吸烟","奔跑","翻墙","打架","摔倒","玩手机","举手"]  # 定义类名列表
 
 model = YOLOv8v5Detector()  # 创建YOLOv8Detector对象
 model.load_model(abs_path("weights/yolov8m_best.pt", path_type="current"))  # 加载预训练的YOLOv8模型
@@ -59,7 +59,7 @@ app = QtWidgets.QApplication(sys.argv)  # 创建QApplication对象
 window = MainWindow()  # 创建MainWindow对象
 
 filename = abs_path("test_media/32-暴力行为检测.mp4", path_type="current")  # 定义视频文件的路径
-videoHandler = MediaHandler(fps=60)  # 创建MediaHandler对象，设置帧率为30fps
+videoHandler = MediaHandler(fps=30)  # 创建MediaHandler对象，设置帧率为30fps
 videoHandler.frameReady.connect(frame_process)  # 当有新的帧准备好时，调用frame_process函数进行处理
 videoHandler.setDevice(filename)  # 设置视频源
 videoHandler.startMedia()  # 开始处理媒体

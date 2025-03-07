@@ -11,7 +11,7 @@ from QtFusion.path import abs_path
 from YOLOv8v5Model import YOLOv8v5Detector  # 从YOLOv8Model模块中导入YOLOv8Detector类，用于加载YOLOv8模型并进行目标检测
 QF_Config.set_verbose(False)
 
-cls_name = ["暴力倾向"]  # 定义类名列表
+cls_name = ["吸烟","奔跑","翻墙","打架","摔倒","玩手机","举手"]  # 定义类名列表
 colors = [[random.randint(0, 255) for _ in range(3)] for _ in range(len(cls_name))]  # 为每个目标类别生成一个随机颜色
 
 model = YOLOv8v5Detector()  # 创建YOLOv8Detector对象
