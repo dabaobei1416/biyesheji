@@ -1,0 +1,7 @@
+path: L:/PythonCode/PySideCode/YOLOv8v5Code/ViolenceDetectionSystem/datasets/Violence
+train: train/images/
+val: valid/images/
+test: test/images/
+nc: 1
+names:
+- violence
