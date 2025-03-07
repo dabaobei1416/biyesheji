@@ -52,7 +52,7 @@ def frame_process(image):  # 定义帧处理函数，用于处理每一帧图像
 cls_name = ["暴力倾向"]  # 定义类名列表
 
 model = YOLOv8v5Detector()  # 创建YOLOv8Detector对象
-model.load_model(abs_path("weights/violence-yolov8n.pt", path_type="current"))  # 加载预训练的YOLOv8模型
+model.load_model(abs_path("weights/yolov8m_best.pt", path_type="current"))  # 加载预训练的YOLOv8模型
 colors = get_cls_color(model.names)  # 获取类别颜色
 
 app = QtWidgets.QApplication(sys.argv)  # 创建QApplication对象
