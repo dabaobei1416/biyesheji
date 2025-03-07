@@ -59,7 +59,7 @@ app = QtWidgets.QApplication(sys.argv)  # 创建QApplication对象
 window = MainWindow()  # 创建MainWindow对象
 
 filename = abs_path("test_media/32-暴力行为检测.mp4", path_type="current")  # 定义视频文件的路径
-videoHandler = MediaHandler(fps=30)  # 创建MediaHandler对象，设置帧率为30fps
+videoHandler = MediaHandler(fps=60)  # 创建MediaHandler对象，设置帧率为30fps
 videoHandler.frameReady.connect(frame_process)  # 当有新的帧准备好时，调用frame_process函数进行处理
 videoHandler.setDevice(filename)  # 设置视频源
 videoHandler.startMedia()  # 开始处理媒体
