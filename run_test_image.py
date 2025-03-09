@@ -15,7 +15,7 @@ cls_name = ["吸烟","奔跑","翻墙","打架","摔倒","玩手机","举手"]  
 colors = [[random.randint(0, 255) for _ in range(3)] for _ in range(len(cls_name))]  # 为每个目标类别生成一个随机颜色
 
 model = YOLOv8v5Detector()  # 创建YOLOv8Detector对象
-model.load_model(abs_path("weights/violence-yolov8n.pt", path_type="current"))  # 加载预训练的YOLOv8模型
+model.load_model(abs_path("weights/yolov8m_best.pt.pt", path_type="current"))  # 加载预训练的YOLOv8模型
 
 
 class MainWindow(QMainWindow):  # 定义MainWindow类，继承自FBaseWindow类

@@ -96,7 +96,7 @@ class Detection_UI:
 
         self.model = st.session_state['model']
         # 加载训练的模型权重
-        self.model.load_model(model_path=abs_path("weights/violence-yolov8n.pt", path_type="current"))
+        self.model.load_model(model_path=abs_path("weights/yolov8m_best.pt", path_type="current"))
         # 为模型中的类别重新分配颜色
         self.colors = [[random.randint(0, 255) for _ in range(3)] for _ in range(len(self.model.names))]
         self.setup_sidebar()  # 初始化侧边栏布局
@@ -118,7 +118,7 @@ class Detection_UI:
         # 设置侧边栏的模型设置部分
         st.sidebar.header("模型设置")
         # 选择模型类型的下拉菜单，包含预设模型和自定义选项
-        model_options = ["yolov8m_best", "v8s", "v8n", "自定义"]
+        model_options = ["yolov8m_best", "best", "yolov8n", "yolov8s", "自定义"]
         self.model_type = st.sidebar.selectbox("选择模型类型", model_options)
 
         # 如果选择自定义模型文件，则提供文件上传器
@@ -150,7 +150,7 @@ class Detection_UI:
         # 设置侧边栏的识别项目设置部分
         st.sidebar.header("识别项目设置")
         # 选择文件类型的下拉菜单
-        self.file_type = st.sidebar.selectbox("选择文件类型", ["图片文件", "视频文件"])
+        self.file_type = st.sidebar.selectbox("选择文件类型", ["图片文件", "视频文件"], index=1)
         # 根据所选的文件类型，提供对应的文件上传器
         if self.file_type == "图片文件":
             self.uploaded_file = st.sidebar.file_uploader("上传图片", type=["jpg", "png", "jpeg"])

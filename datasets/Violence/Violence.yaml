@@ -1,4 +1,4 @@
-path: L:/PythonCode/PySideCode/YOLOv8v5Code/ViolenceDetectionSystem/datasets/Violence
+path: L:/PythonCode/PySideCode/YOLOv8v5Code/YoloV8-Web/datasets/Violence
 train: train/images/
 val: valid/images/
 test: test/images/

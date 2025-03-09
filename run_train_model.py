@@ -37,7 +37,7 @@ if __name__ == '__main__':  # 确保该模块被直接运行时才执行以下�
         name='train_v8_' + data_name  # 指定训练任务的名称
     )
 
-    model = YOLO(abs_path('./weights/yolov5nu.pt', path_type='current'), task='detect')  # 加载预训练的YOLOv8模型
+    model = YOLO(abs_path('./weights/yolov8m_best.pt', path_type='current'), task='detect')  # 加载预训练的YOLOv8模型
     # model = YOLO('./weights/yolov5.yaml', task='detect').load('./weights/yolov5nu.pt')  # 加载预训练的YOLOv8模型
     # Training.
     results = model.train(  # 开始训练模型
