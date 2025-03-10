@@ -1,24 +1,25 @@
-import smtplib
-from email.mime.text import MIMEText
-from email.header import Header
-import random
-import tempfile
-import time
+# 导入所需的库和模块
+import smtplib  # 用于发送电子邮件
+from email.mime.text import MIMEText  # 用于创建MIME文本对象
+from email.header import Header  # 用于设置邮件头信息
+import random  # 用于生成随机数
+import tempfile  # 用于创建临时文件和目录
+import time  # 用于处理时间相关操作
 
-import cv2
-import numpy as np
-import streamlit as st
-from QtFusion.path import abs_path
-from QtFusion.utils import drawRectBox
+import cv2  # OpenCV库，用于图像处理
+import numpy as np  # NumPy库，用于数值计算
+import streamlit as st  # Streamlit库，用于构建Web应用
+from QtFusion.path import abs_path  # 用于获取绝对路径
+from QtFusion.utils import drawRectBox  # 用于在图像上绘制矩形框
 
-from LoggerRes import ResultLogger, LogTable
-from YOLOv8v5Model import YOLOv8v5Detector
-from datasets.Violence.label_name import Label_list
-from style_css import def_css_hitml
-from utils_web import save_uploaded_file, concat_results, load_default_image, get_camera_names
+from LoggerRes import ResultLogger, LogTable  # 用于日志记录和结果管理
+from YOLOv8v5Model import YOLOv8v5Detector  # YOLOv8v5目标检测模型
+from datasets.Violence.label_name import Label_list  # 暴力检测的标签列表
+from style_css import def_css_hitml  # 自定义CSS样式
+from utils_web import save_uploaded_file, concat_results, load_default_image, get_camera_names  # 用于Web应用的工具函数
 
-import threading  # 导入线程模块
-from playsound import playsound  # 导入playsound库
+import threading  # 用于多线程编程
+from playsound import playsound  # 用于播放音频文件
 
 class Detection_UI:
     """
@@ -40,12 +41,15 @@ class Detection_UI:
     def __init__(self):
         """
         初始化行人跌倒检测系统的参数。
+
+        该函数负责初始化系统的各个组件和配置参数，包括类别标签、颜色分配、页面布局、检测模型、相机设置、
+        检测结果变量、UI显示变量、日志数据保存路径、摄像头列表、模型实例、邮箱登录状态以及告警间隔时间等。
         """
         # 初始化类别标签列表和为每个类别随机分配颜色
         self.cls_name = Label_list  # 确保 Label_list 包含所有需要检测的目标类别
         self.colors = [[random.randint(0, 255) for _ in range(3)] for _ in range(len(self.cls_name))]
 
-        # 设置页面标题
+        # 设置页面标题并初始化页面布局
         self.title = "校园学生异常行为分析系统"
         self.setup_page()  # 初始化页面布局
         def_css_hitml()  # 应用 CSS 样式
@@ -53,7 +57,6 @@ class Detection_UI:
         # 初始化检测相关的配置参数
         self.model_type = None
         self.conf_threshold = 0.25  # 默认置信度阈值
-
 
         # 初始化相机和文件相关的变量
         self.selected_camera = None
@@ -127,12 +130,25 @@ class Detection_UI:
         self.setup_sidebar()  # 初始化侧边栏布局
 
     def setup_page(self):
+        """
+        设置页面的布局和配置。
+
+        该方法使用 Streamlit 的 `set_page_config` 函数来配置页面的标题、图标以及侧边栏的初始状态。
+        页面标题设置为实例的 `title` 属性，页面图标设置为火箭图标，侧边栏初始状态为展开。
+
+        参数:
+            self: 类的实例，包含 `title` 属性。
+
+        返回值:
+            无
+        """
         # 设置页面布局
         st.set_page_config(
             page_title=self.title,
             page_icon="🚀",
             initial_sidebar_state="expanded"
         )
+
 
     def setup_sidebar(self):
         """
@@ -251,6 +267,7 @@ class Detection_UI:
         # 添加声音提示的开关
         st.sidebar.header("声音提示")
         self.enable_sound = st.sidebar.checkbox("开启声音提示", value=True)
+
 
     def load_model_file(self):
         if self.custom_model_file:

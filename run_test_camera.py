@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+
 import sys  # 导入sys模块，用于访问与Python解释器相关的变量和函数
 import time  # 导入time模块，用于获取当前时间
 
