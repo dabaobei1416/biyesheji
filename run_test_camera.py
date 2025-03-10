@@ -59,7 +59,7 @@ colors = get_cls_color(model.names)  # 获取类别颜色
 app = QtWidgets.QApplication(sys.argv)  # 创建QApplication对象
 window = MainWindow()  # 创建MainWindow对象
 
-videoHandler = MediaHandler(fps=60)  # 创建MediaHandler对象，设置帧率为30
+videoHandler = MediaHandler(fps=30)  # 创建MediaHandler对象，设置帧率为30
 videoHandler.frameReady.connect(frame_process)  # 当有新的帧准备好时，调用frame_process函数
 videoHandler.setDevice(device=0)  # 设置设备为0，即默认的摄像头
 videoHandler.startMedia()  # 开始处理媒体流
