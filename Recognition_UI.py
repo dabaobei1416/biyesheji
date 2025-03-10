@@ -1,3 +1,6 @@
+import smtplib
+from email.mime.text import MIMEText
+from email.header import Header
 import random
 import tempfile
 import time
@@ -41,14 +44,14 @@ class Detection_UI:
         self.colors = [[random.randint(0, 255) for _ in range(3)] for _ in range(len(self.cls_name))]
 
         # 设置页面标题
-        self.title = "基于YOLO V8的校园学生异常行为分析系统"
+        self.title = "校园学生异常行为分析系统"
         self.setup_page()  # 初始化页面布局
         def_css_hitml()  # 应用 CSS 样式
 
         # 初始化检测相关的配置参数
         self.model_type = None
         self.conf_threshold = 0.25  # 默认置信度阈值
-        self.iou_threshold = 0.5  # 默认IOU阈值
+
 
         # 初始化相机和文件相关的变量
         self.selected_camera = None
@@ -99,6 +102,13 @@ class Detection_UI:
         self.model.load_model(model_path=abs_path("weights/yolov8m_best.pt", path_type="current"))
         # 为模型中的类别重新分配颜色
         self.colors = [[random.randint(0, 255) for _ in range(3)] for _ in range(len(self.model.names))]
+
+        # 初始化邮箱登录状态
+        self.is_logged_in = False  # 添加is_logged_in属性
+        self.logged_in_email = None
+        self.logged_in_password = None
+        self.target_email = None
+
         self.setup_sidebar()  # 初始化侧边栏布局
 
     def setup_page(self):
@@ -165,6 +175,33 @@ class Detection_UI:
                 st.sidebar.write("请选择视频并点击'开始运行'按钮，进行视频检测！")
         else:
             st.sidebar.write("请点击'开始运行'按钮，启动摄像头检测！")
+
+        # 设置侧边栏的邮箱配置部分
+        st.sidebar.header("邮箱配置")
+        # 输入QQ邮箱和密码
+        self.logged_in_email = st.sidebar.text_input("输入QQ邮箱")
+        self.logged_in_password = st.sidebar.text_input("输入QQ邮箱密码", type="password")
+        # 登录按钮
+        if st.sidebar.button("登录"):
+            try:
+                self.is_logged_in = self.login_email()
+                if self.is_logged_in:
+                    st.sidebar.success("登录成功")
+                else:
+                    st.sidebar.error("登录失败，请检查邮箱和密码")
+            except Exception as e:
+                st.sidebar.error(f"登录失败: {str(e)}")
+        # 显示当前登录的邮箱
+        if self.is_logged_in:
+            st.sidebar.write(f"当前登录邮箱: {self.logged_in_email}")
+            # 登出按钮
+            if st.sidebar.button("登出"):
+                self.is_logged_in = False
+                self.logged_in_email = None
+                self.logged_in_password = None
+                st.sidebar.success("已登出")
+        # 输入目标邮箱
+        self.target_email = st.sidebar.text_input("输入接收邮箱")
 
     def load_model_file(self):
         if self.custom_model_file:
@@ -406,31 +443,35 @@ class Detection_UI:
 
         # 如果有有效的检测结果
         if det is not None and len(det):
-                det_info = self.model.postprocess(pred)  # 后处理预测结果
-                if len(det_info):
-                    disp_res = ResultLogger()
-                    res = None
-                    cnt = 0
+            det_info = self.model.postprocess(pred)  # 后处理预测结果
+            if len(det_info):
+                disp_res = ResultLogger()
+                res = None
+                cnt = 0
 
-                    # 遍历检测到的对象
-                    for info in det_info:
-                        name, bbox, conf, cls_id = info['class_name'], info['bbox'], info['score'], info['class_id']
-                        label = '%s %.0f%%' % (name, conf * 100)
+                # 遍历检测到的对象
+                for info in det_info:
+                    name, bbox, conf, cls_id = info['class_name'], info['bbox'], info['score'], info['class_id']
+                    label = '%s %.0f%%' % (name, conf * 100)
 
-                        res = disp_res.concat_results(name, bbox, str(round(conf, 2)), str(round(use_time, 2)))
+                    res = disp_res.concat_results(name, bbox, str(round(conf, 2)), str(round(use_time, 2)))
 
-                        # 绘制检测框和标签
-                        image = drawRectBox(image, bbox, alpha=0.2, addText=label, color=self.colors[cls_id])
-                        # 添加日志条目
-                        self.logTable.add_log_entry(file_name, name, bbox, conf, use_time)
-                        # 记录检测信息
-                        detInfo.append([name, bbox, conf, use_time, cls_id])
-                        # 添加到选择信息列表
-                        select_info.append(name + "-" + str(cnt))
-                        cnt += 1
+                    # 绘制检测框和标签
+                    image = drawRectBox(image, bbox, alpha=0.2, addText=label, color=self.colors[cls_id])
+                    # 添加日志条目
+                    self.logTable.add_log_entry(file_name, name, bbox, conf, use_time)
+                    # 记录检测信息
+                    detInfo.append([name, bbox, conf, use_time, cls_id])
+                    # 添加到选择信息列表
+                    select_info.append(name + "-" + str(cnt))
+                    cnt += 1
 
-                    # 在表格中显示检测结果
-                    self.table_placeholder.table(res)
+                    # 如果检测到异常行为，发送邮件
+                    if name in ["抽烟", "玩手机"]:  # 可以根据实际需求调整异常行为类型
+                        self.send_email(name)
+
+                # 在表格中显示检测结果
+                self.table_placeholder.table(res)
         return image, detInfo, select_info
 
     def frame_table_process(self, frame, caption):
@@ -539,6 +580,41 @@ class Detection_UI:
                     if self.display_mode == "双画面显示":
                         self.image_placeholder_res.image(load_default_image(), caption="识别画面")
 
+    def login_email(self):
+        """
+        登录QQ邮箱。
+        """
+        try:
+            smtp = smtplib.SMTP_SSL('smtp.qq.com', 465)
+            smtp.login(self.logged_in_email, self.logged_in_password)
+            smtp.quit()
+            return True
+        except Exception as e:
+            raise e
+
+    def send_email(self, behavior_type):
+        """
+        发送邮件提醒。
+        """
+        if not self.is_logged_in or not self.target_email:
+            return
+
+        try:
+            # 邮件内容
+            current_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+            mail_msg = f"检测时间: {current_time}\n异常行为类型: {behavior_type}"
+            message = MIMEText(mail_msg, 'plain', 'utf-8')
+            message['From'] = Header(self.logged_in_email, 'utf-8')
+            message['To'] = Header(self.target_email, 'utf-8')
+            message['Subject'] = Header('异常行为检测提醒', 'utf-8')
+
+            # 发送邮件
+            smtp = smtplib.SMTP_SSL('smtp.qq.com', 465)
+            smtp.login(self.logged_in_email, self.logged_in_password)
+            smtp.sendmail(self.logged_in_email, self.target_email, message.as_string())
+            smtp.quit()
+        except Exception as e:
+            st.error(f"邮件发送失败: {str(e)}")
 
 # 实例化并运行应用
 if __name__ == "__main__":

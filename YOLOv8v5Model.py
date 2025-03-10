@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+
 import cv2  # 导入OpenCV库，用于处理图像和视频
 import torch
 from QtFusion.models import Detector, HeatmapGenerator  # 从QtFusion库中导入Detector抽象基类
