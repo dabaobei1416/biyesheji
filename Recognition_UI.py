@@ -17,6 +17,8 @@ from datasets.Violence.label_name import Label_list
 from style_css import def_css_hitml
 from utils_web import save_uploaded_file, concat_results, load_default_image, get_camera_names
 
+import threading  # 导入线程模块
+from playsound import playsound  # 导入playsound库
 
 class Detection_UI:
     """
@@ -95,7 +97,7 @@ class Detection_UI:
 
         # 加载或创建模型实例
         if 'model' not in st.session_state:
-            st.session_state['model'] = YOLOv8v5Detector()  # 创建YOLOv8/v5Detector模型实例
+            st.session_state['model'] = YOLOv8v5Detector()  # 创建YOLOv8Detector模型实例
 
         self.model = st.session_state['model']
         # 加载训练的模型权重
@@ -104,10 +106,23 @@ class Detection_UI:
         self.colors = [[random.randint(0, 255) for _ in range(3)] for _ in range(len(self.model.names))]
 
         # 初始化邮箱登录状态
-        self.is_logged_in = False  # 添加is_logged_in属性
-        self.logged_in_email = None
-        self.logged_in_password = None
-        self.target_email = None
+        if 'logged_in_email' in st.session_state:
+            self.is_logged_in = True
+            self.logged_in_email = st.session_state['logged_in_email']
+            self.logged_in_password = st.session_state['logged_in_password']
+        else:
+            self.is_logged_in = False
+            self.logged_in_email = None
+            self.logged_in_password = None
+
+        if 'target_email' in st.session_state:
+            self.target_email = st.session_state['target_email']
+        else:
+            self.target_email = None
+
+        # 初始化告警间隔时间
+        self.alert_interval = 10  # 默认告警间隔为10秒
+        self.last_alert_time = None  # 上次发送告警邮件的时间
 
         self.setup_sidebar()  # 初始化侧边栏布局
 
@@ -179,29 +194,63 @@ class Detection_UI:
         # 设置侧边栏的邮箱配置部分
         st.sidebar.header("邮箱配置")
         # 输入QQ邮箱和密码
-        self.logged_in_email = st.sidebar.text_input("输入QQ邮箱")
-        self.logged_in_password = st.sidebar.text_input("输入QQ邮箱密码", type="password")
+        self.logged_in_email = st.sidebar.text_input("输入QQ邮箱", value=self.logged_in_email or "")
+        self.logged_in_password = st.sidebar.text_input("输入QQ邮箱密码", type="password", value=self.logged_in_password or "")
         # 登录按钮
         if st.sidebar.button("登录"):
             try:
                 self.is_logged_in = self.login_email()
                 if self.is_logged_in:
+                    st.session_state['logged_in_email'] = self.logged_in_email
+                    st.session_state['logged_in_password'] = self.logged_in_password
                     st.sidebar.success("登录成功")
                 else:
                     st.sidebar.error("登录失败，请检查邮箱和密码")
             except Exception as e:
                 st.sidebar.error(f"登录失败: {str(e)}")
         # 显示当前登录的邮箱
-        if self.is_logged_in:
-            st.sidebar.write(f"当前登录邮箱: {self.logged_in_email}")
+        if 'logged_in_email' in st.session_state and st.session_state['logged_in_email']:
+            st.sidebar.write(f"当前登录邮箱: {st.session_state['logged_in_email']}")
             # 登出按钮
             if st.sidebar.button("登出"):
                 self.is_logged_in = False
-                self.logged_in_email = None
-                self.logged_in_password = None
+                del st.session_state['logged_in_email']
+                del st.session_state['logged_in_password']
                 st.sidebar.success("已登出")
         # 输入目标邮箱
-        self.target_email = st.sidebar.text_input("输入接收邮箱")
+        self.target_email = st.sidebar.text_input("输入接收邮箱", value=self.target_email or "", key="target_email_input")
+        if st.sidebar.button("确定", key="confirm_target_email"):
+            if self.target_email:
+                st.session_state['target_email'] = self.target_email
+                st.sidebar.success("收件邮箱已锁定")
+            else:
+                st.sidebar.error("请输入有效的邮箱地址")
+        # 显示当前锁定的收件邮箱
+        if 'target_email' in st.session_state and st.session_state['target_email']:
+            st.sidebar.write(f"当前锁定的收件邮箱: {st.session_state['target_email']}")
+            # 解锁按钮
+            if st.sidebar.button("解锁", key="unlock_target_email"):
+                del st.session_state['target_email']
+                st.sidebar.success("收件邮箱已解锁")
+        # 手动告警按钮
+        if st.sidebar.button("手动告警"):
+            if 'logged_in_email' in st.session_state and 'target_email' in st.session_state:
+                try:
+                    self.send_email("手动告警")
+                    st.sidebar.success("手动告警邮件已发送")
+                except Exception as e:
+                    st.sidebar.error(f"手动告警邮件发送失败: {str(e)}")
+            else:
+                st.sidebar.error("请先登录邮箱并设置目标邮箱")
+
+        # 设置侧边栏的告警间隔配置部分
+        st.sidebar.header("告警配置")
+        # 告警间隔时间的滑动条，范围从0秒（立即告警）到3600秒（1小时）
+        self.alert_interval = st.sidebar.slider("告警间隔（秒）", min_value=0, max_value=3600, value=30)
+
+        # 添加声音提示的开关
+        st.sidebar.header("声音提示")
+        self.enable_sound = st.sidebar.checkbox("开启声音提示", value=True)
 
     def load_model_file(self):
         if self.custom_model_file:
@@ -454,6 +503,10 @@ class Detection_UI:
                     name, bbox, conf, cls_id = info['class_name'], info['bbox'], info['score'], info['class_id']
                     label = '%s %.0f%%' % (name, conf * 100)
 
+                    # 如果当前目标被过滤，跳过检测
+                    if self.selectbox_target != "全部目标" and name == self.selectbox_target.split("-")[0]:
+                        continue
+
                     res = disp_res.concat_results(name, bbox, str(round(conf, 2)), str(round(use_time, 2)))
 
                     # 绘制检测框和标签
@@ -466,29 +519,27 @@ class Detection_UI:
                     select_info.append(name + "-" + str(cnt))
                     cnt += 1
 
-                    # 如果检测到异常行为，发送邮件
-                    if name in ["抽烟", "玩手机"]:  # 可以根据实际需求调整异常行为类型
-                        self.send_email(name)
+                    # 实时更新表格显示
+                    self.table_placeholder.table(res)
 
-                # 在表格中显示检测结果
-                self.table_placeholder.table(res)
+                    # 如果检测到异常行为且置信度大于0.75，处理提醒
+                    if name in ["吸烟","奔跑","翻墙","打架","摔倒","玩手机","举手"] and conf > 0.75:
+                        current_time = time.time()
+                        # 检查是否满足告警间隔条件
+                        if self.last_alert_time is None or (current_time - self.last_alert_time) >= self.alert_interval:
+                            # 如果已登录邮箱，发送邮件
+                            if self.is_logged_in:
+                                threading.Thread(target=self.send_email_async, args=(name,)).start()
+                                st.toast(f"已发送邮件提醒: {name}", icon="🚨")
+                            else:
+                                # 未登录邮箱，只显示检测到异常行为的提示
+                                st.toast(f"检测到异常行为: {name}", icon="🚨")
+                            # 播放声音提示
+                            if self.enable_sound:
+                                threading.Thread(target=playsound, args=("alert.wav",)).start()
+                            self.last_alert_time = current_time
+
         return image, detInfo, select_info
-
-    def frame_table_process(self, frame, caption):
-        # 显示画面并更新结果
-        self.image_placeholder.image(frame, channels="BGR", caption=caption)
-
-        # 更新检测结果
-        detection_result = "None"
-        detection_location = "[0, 0, 0, 0]"
-        detection_confidence = str(random.random())
-        detection_time = "0.00s"
-
-        # 使用 display_detection_results 函数显示结果
-        res = concat_results(detection_result, detection_location, detection_confidence, detection_time)
-        self.table_placeholder.table(res)
-        # 添加适当的延迟
-        cv2.waitKey(1)
 
     def setupMainWindow(self):
         """
@@ -498,7 +549,7 @@ class Detection_UI:
         """
         st.title(self.title)  # 显示系统标题
         st.write("--------")
-        st.write("计科B21-4 程飞扬 导师：董辛酉")
+        st.write("计科B21-4 2123819 程飞扬 导师：董辛酉")
         st.write("--------")  # 插入一条分割线
 
         # 创建列布局
@@ -550,7 +601,7 @@ class Detection_UI:
         # 在第二列处理目标过滤
         with col2:
             self.selectbox_placeholder = st.empty()
-            detected_targets = ["全部目标"]  # 初始化目标列表
+            detected_targets = ["全部目标","吸烟","奔跑","翻墙","打架","摔倒","玩手机","举手"]  # 初始化目标列表
 
             # 遍历并显示检测结果
             for i, info in enumerate(self.logTable.saved_results):
@@ -585,18 +636,31 @@ class Detection_UI:
         登录QQ邮箱。
         """
         try:
-            smtp = smtplib.SMTP_SSL('smtp.qq.com', 465)
+            # 增加超时设置和重试机制
+            smtp = smtplib.SMTP_SSL('smtp.qq.com', 465, timeout=10)
+            smtp.ehlo()  # 发送EHLO命令
             smtp.login(self.logged_in_email, self.logged_in_password)
             smtp.quit()
             return True
+        except smtplib.SMTPException as e:
+            # 如果是连接问题，尝试重试一次
+            try:
+                smtp = smtplib.SMTP_SSL('smtp.qq.com', 465, timeout=10)
+                smtp.ehlo()
+                smtp.login(self.logged_in_email, self.logged_in_password)
+                smtp.quit()
+                return True
+            except Exception as retry_e:
+                raise retry_e
         except Exception as e:
             raise e
 
-    def send_email(self, behavior_type):
+    def send_email_async(self, behavior_type):
         """
-        发送邮件提醒。
+        异步发送邮件提醒。
         """
         if not self.is_logged_in or not self.target_email:
+            st.toast("未登录邮箱或未设置目标邮箱", icon="❌")  # 使用st.toast显示提醒
             return
 
         try:
@@ -604,17 +668,35 @@ class Detection_UI:
             current_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
             mail_msg = f"检测时间: {current_time}\n异常行为类型: {behavior_type}"
             message = MIMEText(mail_msg, 'plain', 'utf-8')
-            message['From'] = Header(self.logged_in_email, 'utf-8')
+            # 确保From头信息符合RFC标准
+            from_name = "异常行为检测系统"  # 昵称
+            from_email = self.logged_in_email  # 邮箱地址
+            # 对昵称进行Base64编码
+            from_name_encoded = Header(from_name, 'utf-8').encode()
+            message['From'] = f"{from_name_encoded} <{from_email}>"
             message['To'] = Header(self.target_email, 'utf-8')
             message['Subject'] = Header('异常行为检测提醒', 'utf-8')
 
-            # 发送邮件
-            smtp = smtplib.SMTP_SSL('smtp.qq.com', 465)
+            # 发送邮件，增加超时设置
+            smtp = smtplib.SMTP_SSL('smtp.qq.com', 465, timeout=10)
+            smtp.ehlo()  # 发送EHLO命令
             smtp.login(self.logged_in_email, self.logged_in_password)
             smtp.sendmail(self.logged_in_email, self.target_email, message.as_string())
             smtp.quit()
+            st.toast("邮件发送成功", icon="✅")  # 使用st.toast显示提醒
+        except smtplib.SMTPException as e:
+            # 如果是连接问题，尝试重试一次
+            try:
+                smtp = smtplib.SMTP_SSL('smtp.qq.com', 465, timeout=10)
+                smtp.ehlo()
+                smtp.login(self.logged_in_email, self.logged_in_password)
+                smtp.sendmail(self.logged_in_email, self.target_email, message.as_string())
+                smtp.quit()
+                st.toast("邮件发送成功", icon="✅")  # 使用st.toast显示提醒
+            except Exception as retry_e:
+                st.toast(f"邮件发送失败: {str(retry_e)}", icon="❌")  # 使用st.toast显示提醒
         except Exception as e:
-            st.error(f"邮件发送失败: {str(e)}")
+            st.toast(f"邮件发送过程中发生未知错误: {str(e)}", icon="❌")  # 使用st.toast显示提醒
 
 # 实例化并运行应用
 if __name__ == "__main__":
